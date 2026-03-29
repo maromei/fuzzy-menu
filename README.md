@@ -17,18 +17,47 @@ The following features / specs need to be implemented:
   from the path passed as an argument.
 - *2.3* If the `$HOME/.config/fuzzy-menu/` directory and the `config.toml` file
   does not exist on program start, create it.
-- *3* The config file should consist of the following entries with the
+- *3* The config file should consist have different commands under different
+  headings / entry-keys.
+- *3.1* The entry-keys are machine readable.
+- *3.2* The general format should look like this:
+
+```toml
+[entry-key]
+name = "Some Human readable name"
+description = "Some long description about what all this does."
+tags = [
+    "some",
+    "demo",
+    "entry"
+]
+
+[some-other-entry-key]
+description = "This one does not have human readable name."
+tags = [
+    "some",
+    "demo",
+    "entry"
+]
+```
+
+- *3.3* The following fields can be specified for the entries with the
   following meanings:
+
 
 | name | meaning |
 | ---- | ------- |
-| name | title / human readable name |
+| name | optional: title / human readable name. If not present use the entry-key |
 | description | Long text description |
 | tags | list of tags |
+
 
 - *4* The TUI should be rendered using the `ratatui` rust library
 - *4.1* The TUI should display a searchbox with the individual matches
   matches displayed below.
 - *4.2* Each match should display the name in bold. Below the description.
   And below that a list of tags.
+- *4.3* Should no human readable name be defined, use the `entry-key` to
+  be displayed in bold instead.
+
 
