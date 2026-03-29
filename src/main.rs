@@ -218,13 +218,11 @@ impl App {
 
             let mut new_filtered = Vec::new();
             for line in stdout.lines() {
-                if let Some(idx_str) = line.split('|').next() {
-                    if let Ok(idx) = idx_str.trim().parse::<usize>() {
-                        if idx < all_items.len() {
+                if let Some(idx_str) = line.split('|').next()
+                    && let Ok(idx) = idx_str.trim().parse::<usize>()
+                        && idx < all_items.len() {
                             new_filtered.push(all_items[idx].clone());
                         }
-                    }
-                }
             }
             self.filtered_items = new_filtered;
         }
@@ -355,11 +353,10 @@ where
                         app.filter_items();
                     }
                     KeyCode::Enter => {
-                        if let Some(i) = app.list_state.selected() {
-                            if i < app.filtered_items.len() {
+                        if let Some(i) = app.list_state.selected()
+                            && i < app.filtered_items.len() {
                                 return Ok(Some(app.filtered_items[i].command.clone()));
                             }
-                        }
                     }
                     _ => {}
                 },
@@ -380,11 +377,10 @@ where
                         return Ok(None);
                     }
                     KeyCode::Enter => {
-                        if let Some(i) = app.list_state.selected() {
-                            if i < app.filtered_items.len() {
+                        if let Some(i) = app.list_state.selected()
+                            && i < app.filtered_items.len() {
                                 return Ok(Some(app.filtered_items[i].command.clone()));
                             }
-                        }
                     }
                     _ => {}
                 },
@@ -430,14 +426,13 @@ fn ui(f: &mut Frame, app: &mut App) {
                 }
             }
 
-            if let Some(tags) = &item.tags {
-                if !tags.is_empty() {
+            if let Some(tags) = &item.tags
+                && !tags.is_empty() {
                     content_lines.push(Line::from(vec![Span::styled(
                         tags.join(", "),
                         Style::default().fg(Color::Cyan),
                     )]));
                 }
-            }
 
             if is_selected {
                 let border_style = Style::default().fg(Color::Yellow);
