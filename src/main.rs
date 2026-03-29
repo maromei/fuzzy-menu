@@ -443,20 +443,22 @@ fn ui(f: &mut Frame, app: &mut App) {
                 let mut final_lines = vec![Line::from(Span::styled(top_border, border_style))];
                 
                 for line in content_lines {
-                    let line_width = line.width();
-                    let padding = inner_width.saturating_sub(line_width).saturating_sub(1);
                     let mut spans = vec![Span::styled("│ ", border_style)];
                     spans.extend(line.spans);
-                    spans.push(Span::raw(" ".repeat(padding)));
-                    spans.push(Span::styled("│", border_style));
                     final_lines.push(Line::from(spans));
                 }
                 
                 final_lines.push(Line::from(Span::styled(bottom_border, border_style)));
                 ListItem::new(final_lines)
             } else {
-                content_lines.push(Line::from("")); // Spacer
-                ListItem::new(content_lines)
+                let mut final_lines = vec![Line::from("")]; // Top spacer (to match top border)
+                for line in content_lines {
+                    let mut spans = vec![Span::raw("  ")]; // Match "│ " width
+                    spans.extend(line.spans);
+                    final_lines.push(Line::from(spans));
+                }
+                final_lines.push(Line::from("")); // Bottom spacer (to match bottom border)
+                ListItem::new(final_lines)
             }
         })
         .collect();
