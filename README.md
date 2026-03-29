@@ -47,10 +47,10 @@ tags = [
 
 | name | meaning |
 | ---- | ------- |
+| command | The command to be executed |
 | name | optional: title / human readable name. If not present use the entry-key |
-| description | Long text description |
-| tags | list of tags |
-
+| description | optional: Long text description |
+| tags | optional: list of tags |
 
 - *4* The TUI should be rendered using the `ratatui` rust library
 - *4.1* The TUI should display a searchbox with the individual matches
@@ -69,16 +69,19 @@ tags = [
 | `CTRL-y` | insert | select the previouse item in the `match-box` |
 | `DOWN_ARROW` | insert | select the next item in the `match-box` |
 | `UP_ARROW` | insert | select the previouse item in the `match-box` |
+| `ENTER` | insert | execute the currently selected entry |
 | `i` | normal | switch to insert mode |
 | `j` | normal | select the next item in the `match-box` |
 | `k` | normal | select the previouse item in the `match-box` |
 | `ESC` | normal | exit |
 | `CTRL-c` | normal | exit |
+| `ENTER` | normal | execute the currently selected entry |
 
 - *5.1* The tool has two modes that are similar to nvim: `insert` and `normal`
 - *5.2* When first starting the tool, the `insert` mode is active.
 - *5.3* In `insert` mode, text should be able to be typed normally.
 - *5.4* In `normal` mode, text does not get passed to the searchbox, and other
   keymaps specified above apply.
-
+- *6* Executing an entry should execute the `command` in the current shell
+  environment and session.
 
