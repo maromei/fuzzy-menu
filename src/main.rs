@@ -3,22 +3,22 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::io;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::io::Write;
 
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
+    Frame, Terminal,
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
-    Frame, Terminal,
 };
 
 #[derive(Parser, Debug)]
@@ -94,7 +94,7 @@ fn load_config(path: &Path) -> Result<Config, Box<dyn std::error::Error>> {
 
     let content = fs::read_to_string(path)?;
     let mut config: Config = toml::from_str(&content)?;
-    
+
     // Populate the key field from the map keys and process descriptions
     for (key, item) in config.items.iter_mut() {
         item.key = key.clone();
@@ -102,7 +102,7 @@ fn load_config(path: &Path) -> Result<Config, Box<dyn std::error::Error>> {
             *desc = process_description(desc);
         }
     }
-    
+
     Ok(config)
 }
 
@@ -124,11 +124,15 @@ fn process_description(s: &str) -> String {
     };
 
     let first_content_line = lines[start_idx];
-    let ws_count = first_content_line.chars().take_while(|c| c.is_whitespace()).count();
-    
+    let ws_count = first_content_line
+        .chars()
+        .take_while(|c| c.is_whitespace())
+        .count();
+
     if ws_count > 0 {
         let ws_to_remove = &first_content_line[..ws_count];
-        lines[start_idx..].iter()
+        lines[start_idx..]
+            .iter()
             .map(|line| {
                 if line.starts_with(ws_to_remove) {
                     &line[ws_to_remove.len()..]
@@ -188,7 +192,10 @@ impl App {
                 let name = item.name.as_deref().unwrap_or(&item.key);
                 let description = item.description.as_deref().unwrap_or("");
                 let tags = item.tags.as_ref().map(|t| t.join(" ")).unwrap_or_default();
-                input_data.push_str(&format!("{} | {} | {} | {} | {}\n", idx, name, item.command, description, tags));
+                input_data.push_str(&format!(
+                    "{} | {} | {} | {} | {}\n",
+                    idx, name, item.command, description, tags
+                ));
             }
 
             let mut child = Command::new("fzf")
@@ -201,7 +208,9 @@ impl App {
 
             {
                 let stdin = child.stdin.as_mut().expect("Failed to open stdin");
-                stdin.write_all(input_data.as_bytes()).expect("Failed to write to stdin");
+                stdin
+                    .write_all(input_data.as_bytes())
+                    .expect("Failed to write to stdin");
             }
 
             let output = child.wait_with_output().expect("Failed to read stdout");
@@ -219,7 +228,7 @@ impl App {
             }
             self.filtered_items = new_filtered;
         }
-        
+
         if self.filtered_items.is_empty() {
             self.list_state.select(None);
         } else {
@@ -294,10 +303,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match res {
         Ok(Some(command)) => {
             // Execute the command
-            let mut child = Command::new("sh")
-                .arg("-c")
-                .arg(command)
-                .spawn()?;
+            let mut child = Command::new("sh").arg("-c").arg(command).spawn()?;
             child.wait()?;
         }
         Ok(None) => {}
@@ -309,9 +315,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<Option<String>, Box<dyn std::error::Error>> 
-where 
-    <B as Backend>::Error: std::error::Error + 'static
+fn run_app<B: Backend>(
+    terminal: &mut Terminal<B>,
+    mut app: App,
+) -> Result<Option<String>, Box<dyn std::error::Error>>
+where
+    <B as Backend>::Error: std::error::Error + 'static,
 {
     loop {
         terminal.draw(|f| ui(f, &mut app))?;
@@ -388,13 +397,7 @@ fn ui(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(2)
-        .constraints(
-            [
-                Constraint::Length(3),
-                Constraint::Min(1),
-            ]
-            .as_ref(),
-        )
+        .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
         .split(f.area());
 
     let title = format!("Search [{:?}]", app.mode);
@@ -413,12 +416,13 @@ fn ui(f: &mut Frame, app: &mut App) {
         .map(|(i, item)| {
             let is_selected = Some(i) == selected_index;
             let display_name = item.name.as_deref().unwrap_or(&item.key);
-            
-            let mut content_lines = vec![
-                Line::from(vec![
-                    Span::styled(display_name, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-                ]),
-            ];
+
+            let mut content_lines = vec![Line::from(vec![Span::styled(
+                display_name,
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )])];
 
             if let Some(desc) = &item.description {
                 for line in desc.lines() {
@@ -428,9 +432,10 @@ fn ui(f: &mut Frame, app: &mut App) {
 
             if let Some(tags) = &item.tags {
                 if !tags.is_empty() {
-                    content_lines.push(Line::from(vec![
-                        Span::styled(tags.join(", "), Style::default().fg(Color::Cyan)),
-                    ]));
+                    content_lines.push(Line::from(vec![Span::styled(
+                        tags.join(", "),
+                        Style::default().fg(Color::Cyan),
+                    )]));
                 }
             }
 
@@ -439,15 +444,15 @@ fn ui(f: &mut Frame, app: &mut App) {
                 let inner_width = (list_width as usize).saturating_sub(2);
                 let top_border = format!("┌{}┐", "─".repeat(inner_width));
                 let bottom_border = format!("└{}┘", "─".repeat(inner_width));
-                
+
                 let mut final_lines = vec![Line::from(Span::styled(top_border, border_style))];
-                
+
                 for line in content_lines {
                     let mut spans = vec![Span::styled("│ ", border_style)];
                     spans.extend(line.spans);
                     final_lines.push(Line::from(spans));
                 }
-                
+
                 final_lines.push(Line::from(Span::styled(bottom_border, border_style)));
                 ListItem::new(final_lines)
             } else {
