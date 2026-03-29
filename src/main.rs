@@ -134,8 +134,8 @@ fn process_description(s: &str) -> String {
         lines[start_idx..]
             .iter()
             .map(|line| {
-                if line.starts_with(ws_to_remove) {
-                    &line[ws_to_remove.len()..]
+                if let Some(stripped) = line.strip_prefix(ws_to_remove) {
+                    stripped
                 } else if line.trim().is_empty() {
                     ""
                 } else {
