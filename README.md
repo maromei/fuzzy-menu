@@ -59,5 +59,26 @@ tags = [
   And below that a list of tags.
 - *4.3* Should no human readable name be defined, use the `entry-key` to
   be displayed in bold instead.
+- *5* The following keymaps should apply:
+
+| key | mode | action |
+| --- | ---- | ------ |
+| `ESC` | insert | switch to normal mode |
+| `CTRL-c` | insert | exit |
+| `CTRL-n` | insert | select the next item in the `match-box` |
+| `CTRL-y` | insert | select the previouse item in the `match-box` |
+| `DOWN_ARROW` | insert | select the next item in the `match-box` |
+| `UP_ARROW` | insert | select the previouse item in the `match-box` |
+| `i` | normal | switch to insert mode |
+| `j` | normal | select the next item in the `match-box` |
+| `k` | normal | select the previouse item in the `match-box` |
+| `ESC` | normal | exit |
+| `CTRL-c` | normal | exit |
+
+- *5.1* The tool has two modes that are similar to nvim: `insert` and `normal`
+- *5.2* When first starting the tool, the `insert` mode is active.
+- *5.3* In `insert` mode, text should be able to be typed normally.
+- *5.4* In `normal` mode, text does not get passed to the searchbox, and other
+  keymaps specified above apply.
 
 
