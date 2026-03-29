@@ -11,6 +11,12 @@ an example.
 
 The SPEC section below defines how the tool is supposed to work.
 
+## Installation
+
+```bash
+cargo install --git https://github.com/maromei/fuzzy-menu/
+```
+
 ## SPEC
 
 Please build me a rust project called `fuzzy-menu`.
