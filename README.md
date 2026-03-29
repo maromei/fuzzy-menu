@@ -1,5 +1,16 @@
 # Fuzzy Menu
 
+> [!IMPORTANT]
+> **Disclaimer:** This is a fully vibe coded application which was created
+> on a whim.
+> There is no real quality or much thought expected here.
+
+This project implements a very small TUI for fuzzy searching and executing
+commands defined in `config.toml`. See the `test_config.toml` for
+an example.
+
+The SPEC section below defines how the tool is supposed to work.
+
 ## SPEC
 
 Please build me a rust project called `fuzzy-menu`.
