@@ -1,5 +1,6 @@
 use clap::Parser;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -7,7 +8,7 @@ use std::process::{Command, Stdio};
 use std::io::Write;
 
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -29,32 +30,44 @@ struct Args {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Item {
-    pub name: String,
-    pub description: String,
-    pub tags: Vec<String>,
+    pub command: String,
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub tags: Option<Vec<String>>,
+    #[serde(skip)]
+    pub key: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
-    pub items: Vec<Item>,
+    #[serde(flatten)]
+    pub items: HashMap<String, Item>,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self {
-            items: vec![
-                Item {
-                    name: "Example Command".to_string(),
-                    description: "This is an example command description.".to_string(),
-                    tags: vec!["example".to_string(), "test".to_string()],
-                },
-                Item {
-                    name: "Another Command".to_string(),
-                    description: "This is another command description with more details.".to_string(),
-                    tags: vec!["other".to_string(), "demo".to_string()],
-                },
-            ],
-        }
+        let mut items = HashMap::new();
+        items.insert(
+            "example-command".to_string(),
+            Item {
+                command: "echo 'Hello World'".to_string(),
+                name: Some("Example Command".to_string()),
+                description: Some("\n    This is some multiline string.\n    The indentation will be removed on each line.\n        Since this line has an additional indentation level, this additional\n        one will be displayed.".to_string()),
+                tags: Some(vec!["example".to_string(), "test".to_string()]),
+                key: "example-command".to_string(),
+            },
+        );
+        items.insert(
+            "ls-home".to_string(),
+            Item {
+                command: "ls -la ~".to_string(),
+                name: None,
+                description: Some("List home directory content.".to_string()),
+                tags: None,
+                key: "ls-home".to_string(),
+            },
+        );
+        Self { items }
     }
 }
 
@@ -80,8 +93,62 @@ fn load_config(path: &Path) -> Result<Config, Box<dyn std::error::Error>> {
     }
 
     let content = fs::read_to_string(path)?;
-    let config: Config = toml::from_str(&content)?;
+    let mut config: Config = toml::from_str(&content)?;
+    
+    // Populate the key field from the map keys and process descriptions
+    for (key, item) in config.items.iter_mut() {
+        item.key = key.clone();
+        if let Some(desc) = &mut item.description {
+            *desc = process_description(desc);
+        }
+    }
+    
     Ok(config)
+}
+
+fn process_description(s: &str) -> String {
+    if !s.contains('\n') && !s.contains('\r') {
+        return s.to_string();
+    }
+
+    let lines: Vec<&str> = s.lines().collect();
+    if lines.is_empty() {
+        return s.to_string();
+    }
+
+    // Skip the first line if it's empty (common in TOML multiline strings)
+    let start_idx = if lines[0].is_empty() && lines.len() > 1 {
+        1
+    } else {
+        0
+    };
+
+    let first_content_line = lines[start_idx];
+    let ws_count = first_content_line.chars().take_while(|c| c.is_whitespace()).count();
+    
+    if ws_count > 0 {
+        let ws_to_remove = &first_content_line[..ws_count];
+        lines[start_idx..].iter()
+            .map(|line| {
+                if line.starts_with(ws_to_remove) {
+                    &line[ws_to_remove.len()..]
+                } else if line.trim().is_empty() {
+                    ""
+                } else {
+                    line
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    } else {
+        lines[start_idx..].join("\n")
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum Mode {
+    Insert,
+    Normal,
 }
 
 struct App {
@@ -89,11 +156,13 @@ struct App {
     config: Config,
     filtered_items: Vec<Item>,
     list_state: ListState,
+    mode: Mode,
 }
 
 impl App {
     fn new(config: Config) -> App {
-        let items = config.items.clone();
+        let mut items: Vec<Item> = config.items.values().cloned().collect();
+        items.sort_by(|a, b| a.key.cmp(&b.key));
         let mut list_state = ListState::default();
         if !items.is_empty() {
             list_state.select(Some(0));
@@ -103,18 +172,23 @@ impl App {
             config,
             filtered_items: items,
             list_state,
+            mode: Mode::Insert,
         }
     }
 
     fn filter_items(&mut self) {
+        let all_items: Vec<Item> = self.config.items.values().cloned().collect();
         if self.input.is_empty() {
-            self.filtered_items = self.config.items.clone();
+            self.filtered_items = all_items;
+            self.filtered_items.sort_by(|a, b| a.key.cmp(&b.key));
         } else {
             // Using fzf in the background
             let mut input_data = String::new();
-            for (idx, item) in self.config.items.iter().enumerate() {
-                // Use a delimiter that is unlikely to be in the name/description
-                input_data.push_str(&format!("{} | {} | {} | {}\n", idx, item.name, item.description, item.tags.join(" ")));
+            for (idx, item) in all_items.iter().enumerate() {
+                let name = item.name.as_deref().unwrap_or(&item.key);
+                let description = item.description.as_deref().unwrap_or("");
+                let tags = item.tags.as_ref().map(|t| t.join(" ")).unwrap_or_default();
+                input_data.push_str(&format!("{} | {} | {} | {} | {}\n", idx, name, item.command, description, tags));
             }
 
             let mut child = Command::new("fzf")
@@ -137,8 +211,8 @@ impl App {
             for line in stdout.lines() {
                 if let Some(idx_str) = line.split('|').next() {
                     if let Ok(idx) = idx_str.trim().parse::<usize>() {
-                        if idx < self.config.items.len() {
-                            new_filtered.push(self.config.items[idx].clone());
+                        if idx < all_items.len() {
+                            new_filtered.push(all_items[idx].clone());
                         }
                     }
                 }
@@ -217,14 +291,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     terminal.show_cursor()?;
 
-    if let Err(err) = res {
-        println!("{:?}", err);
+    match res {
+        Ok(Some(command)) => {
+            // Execute the command
+            let mut child = Command::new("sh")
+                .arg("-c")
+                .arg(command)
+                .spawn()?;
+            child.wait()?;
+        }
+        Ok(None) => {}
+        Err(err) => {
+            println!("{:?}", err);
+        }
     }
 
     Ok(())
 }
 
-fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<(), Box<dyn std::error::Error>> 
+fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<Option<String>, Box<dyn std::error::Error>> 
 where 
     <B as Backend>::Error: std::error::Error + 'static
 {
@@ -232,30 +317,68 @@ where
         terminal.draw(|f| ui(f, &mut app))?;
 
         if let Event::Key(key) = event::read()? {
-            match key.code {
-                KeyCode::Esc => return Ok(()),
-                KeyCode::Char('c') if key.modifiers.contains(event::KeyModifiers::CONTROL) => return Ok(()),
-                KeyCode::Char(c) => {
-                    app.input.push(c);
-                    app.filter_items();
-                }
-                KeyCode::Backspace => {
-                    app.input.pop();
-                    app.filter_items();
-                }
-                KeyCode::Down => {
-                    app.next();
-                }
-                KeyCode::Up => {
-                    app.previous();
-                }
-                KeyCode::Enter => {
-                    // Currently no action specified for Enter in requirements
-                    // but we could exit or execute the command.
-                    // For now, let's just exit.
-                    return Ok(());
-                }
-                _ => {}
+            match app.mode {
+                Mode::Insert => match key.code {
+                    KeyCode::Esc => {
+                        app.mode = Mode::Normal;
+                    }
+                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        return Ok(None);
+                    }
+                    KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        app.next();
+                    }
+                    KeyCode::Char('y') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        app.previous();
+                    }
+                    KeyCode::Down => {
+                        app.next();
+                    }
+                    KeyCode::Up => {
+                        app.previous();
+                    }
+                    KeyCode::Char(c) => {
+                        app.input.push(c);
+                        app.filter_items();
+                    }
+                    KeyCode::Backspace => {
+                        app.input.pop();
+                        app.filter_items();
+                    }
+                    KeyCode::Enter => {
+                        if let Some(i) = app.list_state.selected() {
+                            if i < app.filtered_items.len() {
+                                return Ok(Some(app.filtered_items[i].command.clone()));
+                            }
+                        }
+                    }
+                    _ => {}
+                },
+                Mode::Normal => match key.code {
+                    KeyCode::Char('i') => {
+                        app.mode = Mode::Insert;
+                    }
+                    KeyCode::Char('j') => {
+                        app.next();
+                    }
+                    KeyCode::Char('k') => {
+                        app.previous();
+                    }
+                    KeyCode::Esc => {
+                        return Ok(None);
+                    }
+                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        return Ok(None);
+                    }
+                    KeyCode::Enter => {
+                        if let Some(i) = app.list_state.selected() {
+                            if i < app.filtered_items.len() {
+                                return Ok(Some(app.filtered_items[i].command.clone()));
+                            }
+                        }
+                    }
+                    _ => {}
+                },
             }
         }
     }
@@ -274,38 +397,74 @@ fn ui(f: &mut Frame, app: &mut App) {
         )
         .split(f.area());
 
+    let title = format!("Search [{:?}]", app.mode);
     let input = Paragraph::new(app.input.as_str())
-        .block(Block::default().borders(Borders::ALL).title("Search"));
+        .block(Block::default().borders(Borders::ALL).title(title));
     f.render_widget(input, chunks[0]);
+
+    let selected_index = app.list_state.selected();
+    // width of the list area minus borders
+    let list_width = chunks[1].width.saturating_sub(2);
 
     let items: Vec<ListItem> = app
         .filtered_items
         .iter()
-        .map(|item| {
-            let lines = vec![
+        .enumerate()
+        .map(|(i, item)| {
+            let is_selected = Some(i) == selected_index;
+            let display_name = item.name.as_deref().unwrap_or(&item.key);
+            
+            let mut content_lines = vec![
                 Line::from(vec![
-                    Span::styled(&item.name, Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(display_name, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
                 ]),
-                Line::from(vec![
-                    Span::raw(&item.description),
-                ]),
-                Line::from(vec![
-                    Span::styled(item.tags.join(", "), Style::default().fg(Color::Cyan)),
-                ]),
-                Line::from(""), // Spacer
             ];
-            ListItem::new(lines)
+
+            if let Some(desc) = &item.description {
+                for line in desc.lines() {
+                    content_lines.push(Line::from(vec![Span::raw(line)]));
+                }
+            }
+
+            if let Some(tags) = &item.tags {
+                if !tags.is_empty() {
+                    content_lines.push(Line::from(vec![
+                        Span::styled(tags.join(", "), Style::default().fg(Color::Cyan)),
+                    ]));
+                }
+            }
+
+            if is_selected {
+                let border_style = Style::default().fg(Color::Yellow);
+                let inner_width = (list_width as usize).saturating_sub(2);
+                let top_border = format!("┌{}┐", "─".repeat(inner_width));
+                let bottom_border = format!("└{}┘", "─".repeat(inner_width));
+                
+                let mut final_lines = vec![Line::from(Span::styled(top_border, border_style))];
+                
+                for line in content_lines {
+                    let line_width = line.width();
+                    let padding = inner_width.saturating_sub(line_width).saturating_sub(1);
+                    let mut spans = vec![Span::styled("│ ", border_style)];
+                    spans.extend(line.spans);
+                    spans.push(Span::raw(" ".repeat(padding)));
+                    spans.push(Span::styled("│", border_style));
+                    final_lines.push(Line::from(spans));
+                }
+                
+                final_lines.push(Line::from(Span::styled(bottom_border, border_style)));
+                ListItem::new(final_lines)
+            } else {
+                content_lines.push(Line::from("")); // Spacer
+                ListItem::new(content_lines)
+            }
         })
         .collect();
 
     let list = List::new(items)
         .block(Block::default().borders(Borders::ALL).title("Matches"))
-        .highlight_style(
-            Style::default()
-                .bg(Color::LightBlue)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol(">> ");
+        .highlight_style(Style::default())
+        .highlight_symbol("");
 
     f.render_stateful_widget(list, chunks[1], &mut app.list_state);
 }
