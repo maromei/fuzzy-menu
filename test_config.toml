@@ -1,15 +1,24 @@
-[[items]]
-name = "Example Command"
-description = "This is an example command description."
-tags = [
-    "example",
-    "test",
-]
+[list-last-projects]
+command = "ls -lrt ${HOME}/projects"
+description = """
+    List my last projects.
+    This contains a multiline description just to check what all of
+    this looks like when rendered in the terminal.
 
-[[items]]
-name = "Another Command"
-description = "This is another command description with more details."
+        Here we add another indentation.
+        This should definately be indented.
+
+    This not anymore.
+        But this again.
+    Not anymore lol.
+        ... But again?
+"""
+
+[actvenv]
+name = "Activate Python .venv"
+command = "source ./.venv/bin/activate"
+description = "Activate the .venv python environment."
 tags = [
-    "other",
-    "demo",
+    "python",
+    "venv"
 ]
