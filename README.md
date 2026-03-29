@@ -52,6 +52,33 @@ tags = [
 | description | optional: Long text description |
 | tags | optional: list of tags |
 
+- *3.4* The description field should allow for multiline input, which is
+  also displayed as multiline input in the terminal.
+- *3.4.1* Should the multiline start with a linebreak followed by some
+  amount of whitespace, the amount of of whitespace will be removed at the
+  start of each following line. F.e.:
+
+
+```toml
+...
+description = """
+    This is some multiline string.
+    The indentation will be removed on each line.
+        Since this line has an additional indentation level, this additional
+        one will be displayed.
+"""
+...
+```
+
+Should render to:
+
+```text
+This is some multiline string.
+The indentation will be removed on each line.
+    Since this line has an additional indentation level, this additional
+    one will be displayed.
+```
+
 - *4* The TUI should be rendered using the `ratatui` rust library
 - *4.1* The TUI should display a searchbox with the individual matches
   matches displayed below.
