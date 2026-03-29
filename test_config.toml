@@ -1,0 +1,15 @@
+[[items]]
+name = "Example Command"
+description = "This is an example command description."
+tags = [
+    "example",
+    "test",
+]
+
+[[items]]
+name = "Another Command"
+description = "This is another command description with more details."
+tags = [
+    "other",
+    "demo",
+]
